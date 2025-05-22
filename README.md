@@ -1,3 +1,5 @@
+[English Version (英文版)](README.md)
+
 # hourly-journal
 
 hourly journal 每小时记录，实践柳比歇夫时间记录法，点亮你的24枚“时间金币”。
