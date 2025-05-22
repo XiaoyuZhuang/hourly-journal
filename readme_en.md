@@ -1,4 +1,4 @@
-[中文版 (Chinese Version)](README_zh.md)
+[中文版 (Chinese Version)](README.md)
 
 # hourly-journal
 
