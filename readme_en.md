@@ -8,6 +8,9 @@ Hourly journal, practicing Lyubishchev's time-tracking method, light up your 24 
 
 "Hourly Journal" is a lightweight web application designed to help users record and review their activities and status on an hourly basis. Through simple logging and tagging, users can gain a clearer understanding of their time allocation, practice Lyubishchev's time-tracking method, and enhance self-awareness and life efficiency. All data is stored locally in the user's browser, ensuring privacy.
 
+"Hourly Journal" is a lightweight web application. You can try it live at [coin.xyzhuang.asia](http://coin.xyzhuang.asia).
+
+
 ## Features
 
 * **Hourly Logging:** Record activities and mood/status on an hourly basis.
