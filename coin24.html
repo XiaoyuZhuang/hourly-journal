@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>每小时反思 V4.15</title>
+    <style>
+        :root {
+            --bg-color: #f4f4f4; --text-color: #000000; --card-bg-color: #ffffff;
+            --border-color: #dddddd; --header-bg: #333333; --header-text-color: #ffffff;
+            --button-primary-bg: #007bff; --button-primary-text-color: #ffffff;
+            --button-secondary-bg: #6c757d; --button-secondary-text-color: #ffffff;
+            --current-hour-indicator-color: #007bff; --input-bg-color: #ffffff;
+            --input-border-color: #cccccc; --header-reminder-text-color: #cccccc;
+            --slot-expander-text-color: #555555; --slot-expander-bg-color: #efefef;
+            --slot-expander-border-color: #dddddd; --slot-gap: 6px;
+            --current-hour-badge-bg: var(--current-hour-indicator-color); 
+            --current-hour-badge-text: #ffffff; 
+            --alpha-slot-bg-light: 0.4; --alpha-slot-bg-dark: 0.3; 
+        }
+        body.dark-mode {
+            --bg-color: #1e1e1e; --text-color: #e0e0e0; --card-bg-color: #2c2c2c;
+            --border-color: #444444; --header-bg: #1c1c1c; --header-text-color: #e0e0e0;
+            --button-secondary-bg: #5a6268; 
+            --current-hour-indicator-color: #3793ff; 
+            --input-bg-color: #383838; --input-border-color: #555555;
+            --header-reminder-text-color: #888888; --slot-expander-text-color: #bbbbbb;
+            --slot-expander-bg-color: #3a3a3a; --slot-expander-border-color: #555555;
+            --current-hour-badge-bg: var(--current-hour-indicator-color); 
+            --current-hour-badge-text: #1e1e1e; 
+        }
+        * { box-sizing: border-box; }
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
+            margin: 0; padding: 0; background-color: var(--bg-color); color: var(--text-color); 
+            transition: background-color 0.3s, color 0.3s; font-weight: bold; line-height: 1.35; 
+        }
+        .app-container { max-width: 800px; margin: auto; padding: 0 6px 6px 6px; } 
+        .header { 
+            background-color: var(--header-bg); color: var(--header-text-color); 
+            padding: 6px 10px; display: flex; justify-content: space-between; align-items: center; 
+        }
+        .header-time-container { cursor: pointer; user-select: none; display: flex; align-items: baseline; }
+        .header-time { font-size: 0.85em; } 
+        .header-reminder { font-size: 0.7em; color: var(--header-reminder-text-color); margin-left: 5px; font-weight: bold;}
+        .header-nav { display: flex; align-items: center; }
+        .header-nav button { 
+            background: none; border: none; color: var(--header-text-color); 
+            font-size: 1.1em;  cursor: pointer; padding: 3px 5px; margin-left: 4px;
+        } 
+        .header-nav button:first-child { margin-left: 0; }
+        .header-nav button:hover { background-color: rgba(255,255,255,0.1); border-radius:4px; }
+
+        .main-page, .settings-page { display: none; }
+        .main-page.active, .settings-page.active { display: block; width: 100%; }
+        
+        #hourlyRecords { display: flex; flex-wrap: wrap; gap: var(--slot-gap); width: 100%; }
+        .main-page > .date-nav, .main-page > .export-section { width: 100%; }
+        .main-page .date-nav { display: flex; justify-content: space-between; align-items: center; margin: 10px 0; gap: 6px; }
+        .main-page .date-nav button { padding: 5px 7px; font-size: 0.8em; background-color: var(--button-secondary-bg); color: var(--button-secondary-text-color); border: none; cursor: pointer; border-radius: 3px; flex-shrink: 0; }
+        .main-page .date-nav button:hover { opacity: 0.8; }
+        .main-page .current-date-display { font-size: 0.85em; text-align: center; flex-grow: 1; } 
+        
+        .main-page .hour-slot { 
+            border: 1px solid var(--border-color); border-left-width: 3px; border-left-style: solid; border-left-color:transparent;
+            margin-bottom: 0; border-radius: 3px; background-color: var(--card-bg-color); 
+            transition: background-color 0.3s ease, border-left-color 0.3s ease, border-color 0.3s ease, width 0.3s ease; 
+        }
+        .main-page .hour-slot:not(.is-empty-collapsed) {
+            width: 100%; padding: 6px; display: flex; flex-direction: row; 
+            align-items: flex-start; gap: 8px; 
+        }
+        .slot-left-column { display: flex; flex-direction: column; flex: 0 0 90px; gap: 4px; }
+        .main-page .hour-slot:not(.is-empty-collapsed) .time-label { 
+            font-size:0.9em; margin-bottom: 0; color: var(--text-color); display: block;
+            text-align: left; padding-top: 7px; min-width: 40px; position: relative; 
+        }
+        .main-page .hour-slot:not(.is-empty-collapsed) .tag-select { 
+            width: 100%; padding: 4px 3px; font-size: 0.8em; font-weight: normal;
+            border: 1px solid var(--input-border-color); background-color: var(--input-bg-color);
+            color: var(--text-color); border-radius: 2px;
+        }
+        .main-page .hour-slot:not(.is-empty-collapsed) .notes-textarea { 
+            flex: 1 1 auto; min-height: 0; 
+            border: 1px solid var(--input-border-color); background-color: var(--input-bg-color); color: var(--text-color);
+            border-radius: 2px; padding: 5px; margin-bottom: 0; 
+            font-size: 0.9em; font-weight: normal; resize: vertical;
+        }
+        .main-page .hour-slot.is-empty-collapsed {
+            display: flex; flex-direction: column;
+            width: calc(33.333% - (var(--slot-gap) * 2 / 3)); padding: 4px;
+            min-height: 50px; justify-content: space-between; 
+        }
+        .main-page .hour-slot.is-empty-collapsed > .time-label-collapsed { 
+             font-size: 0.8em; margin-bottom: 2px; text-align: center; display: block; color: var(--text-color);
+        }
+        /* MODIFIED: Current hour indicator border for ALL states */
+        .main-page .hour-slot.current-hour-indicator { border-left-color: var(--current-hour-indicator-color); }
+        .main-page .hour-slot.is-empty-collapsed .slot-content-wrapper { display: none; } 
+        
+        .current-hour-badge { 
+            background-color: var(--current-hour-badge-bg); color: var(--current-hour-badge-text);
+            padding: 1px 4px; font-size: 0.7em; border-radius: 3px; margin-left: 4px;
+            font-weight: bold; display: inline-block; vertical-align: middle;
+        }
+        .slot-expander-button { display: block; width: 100%; text-align: center; padding: 5px 3px; background-color: var(--slot-expander-bg-color); border: 1px solid var(--slot-expander-border-color); color: var(--slot-expander-text-color); border-radius: 3px; cursor: pointer; margin-top: auto; font-weight: normal; font-size: 0.75em; transition: background-color 0.2s; }
+        .slot-expander-button:hover { filter: brightness(95%); }
+        body.dark-mode .slot-expander-button:hover { filter: brightness(115%); }
+
+        .main-page .export-section { margin-top: 12px; padding: 10px; background-color: var(--card-bg-color); border-radius: 3px; border: 1px solid var(--border-color); }
+        /* MODIFIED: Export section font sizes */
+        .main-page .export-section h3 { margin-top:0; color: var(--text-color); font-size: 0.95em; margin-bottom: 6px;}
+        .main-page .export-section #exportPreviewArea h4 { font-size: 0.9em; margin-top: 10px; margin-bottom: 4px; }
+        .main-page .export-section .primary-action-button { font-size: 0.8em; padding: 6px 10px; }
+
+        #exportPreviewArea { width: 100%; } 
+        .main-page .export-section textarea#exportTextarea { width: 100%; margin-bottom: 6px; background-color: var(--input-bg-color); color: var(--text-color); border: 1px solid var(--input-border-color); font-size: 0.9em; font-weight: normal; }
+        /* General primary button style - this was for main page, now export section overrides it */
+        .main-page .primary-action-button { padding: 8px 12px; font-size: 0.9em; /* ... other styles ... */ }
+
+
+        .settings-page .settings-content { margin-top: 8px; padding: 6px; background-color: var(--card-bg-color); border-radius: 3px; border: 1px solid var(--border-color); }
+        .settings-page .settings-content h3 { margin-top:0; color: var(--text-color); font-size: 0.95em; margin-bottom: 5px; }
+        .settings-page .settings-content h4 { color: var(--text-color); font-size: 0.85em; margin-top: 0.6em; margin-bottom: 0.1em;}
+        .settings-page .primary-action-button { padding: 6px 8px; font-size: 0.8em; margin-top: 5px; background-color: var(--button-primary-bg); color: var(--button-primary-text-color); border:none; border-radius:3px; cursor:pointer;}
+        .settings-page .primary-action-button:hover { opacity:0.8; }
+        .settings-page .primary-action-button + .settings-page .primary-action-button { margin-top: 5px; }
+        .settings-page .settings-content .tag-item { display: flex; justify-content: space-between; align-items: center; padding: 3px 0; border-bottom: 1px solid var(--border-color); color: var(--text-color); }
+        .settings-page .settings-content .tag-item:last-child { border-bottom: none; }
+        .settings-page .settings-content .tag-color-preview { width: 14px; height: 14px; border-radius: 2px; border: 1px solid var(--border-color); display: inline-block; margin-right: 4px; flex-shrink: 0;}
+        .settings-page .settings-content .delete-tag-btn { background-color: #dc3545; padding: 2px 4px; font-size:0.7em; color:white; flex-shrink: 0; margin-left:4px; border-radius: 2px; border:none; cursor:pointer;}
+        .settings-page .settings-content .delete-tag-btn:hover { background-color: #c82333; }
+        .settings-page .add-tag-form { display: flex; flex-direction: column; gap: 3px; margin-bottom:8px; }
+        .settings-page .add-tag-form input[type="text"] { padding: 4px; border: 1px solid var(--input-border-color); border-radius: 2px; background-color: var(--input-bg-color); color: var(--text-color); width: 100%; font-size: 0.8em; font-weight: normal; }
+        .settings-page .add-tag-form .color-picker-container { display: flex; align-items: center; gap: 4px; }
+        .settings-page .add-tag-form label { font-size: 0.7em; }
+        .settings-page .add-tag-form input[type="color"] { padding: 0; height: 26px; width: 36px; border: 1px solid var(--input-border-color); border-radius: 2px; background-color: var(--input-bg-color); }
+        .settings-page .theme-toggle-btn { margin-bottom: 8px; width:100%;}
+        .settings-page hr { margin: 10px 0; border-top: 1px solid var(--border-color); border-bottom:0;}
+        .settings-page .font-size-controls { margin-bottom: 8px; }
+        .settings-page .font-size-display-reset { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+        .settings-page .font-size-display-reset label { font-size: 0.85em;}
+        .settings-page .font-size-display-reset button { font-size: 0.7em !important; padding: 3px 6px !important; margin-top:0 !important;} 
+        .settings-page .font-size-slider-buttons { display: flex; align-items: center; gap: 6px; }
+        .settings-page .font-size-slider-buttons input[type="range"] { flex-grow: 1; margin: 0; height: 22px; accent-color: var(--button-primary-bg);}
+        .settings-page .font-size-slider-buttons button { padding: 4px 0px !important; font-size: 0.9em !important; min-width: 30px; flex-basis: 30px; flex-shrink:0; line-height:1.1; margin-top:0 !important;}
+
+        @media (min-width: 601px) { 
+            .app-container { padding: 0 15px 15px 15px; }
+            .header { padding: 8px 15px; } .header-time { font-size: 0.95em; } 
+            .header-reminder { font-size: 0.75em; } .header-nav button { font-size: 1.3em; padding: 4px 7px;} 
+            .main-page .date-nav button { padding: 7px 9px; font-size: 0.85em; } 
+            .main-page .current-date-display { font-size: 0.95em; } 
+            .main-page .hour-slot:not(.is-empty-collapsed) { padding: 8px; }
+            .main-page .hour-slot:not(.is-empty-collapsed) > .slot-left-column { flex-basis: 110px; }
+            .main-page .hour-slot:not(.is-empty-collapsed) .time-label { font-size: 0.95em; padding-top: 6px; }
+            .main-page .hour-slot:not(.is-empty-collapsed) .tag-select { font-size: 0.85em; }
+            .main-page .hour-slot:not(.is-empty-collapsed) .notes-textarea { font-size: 0.95em; }
+            .main-page .hour-slot.is-empty-collapsed { min-height: 60px; }
+            .main-page .hour-slot.is-empty-collapsed > .time-label-collapsed { font-size: 0.85em; }
+            .main-page .hour-slot.is-empty-collapsed .slot-expander-button { font-size: 0.8em; padding: 5px; }
+            .current-hour-badge { font-size: 0.65em; }
+            /* Desktop export section fonts - revert to original larger if needed, or keep scaled */
+            .main-page .export-section h3 { font-size: 1.05em; } /* Slightly larger than new mobile */
+            .main-page .export-section #exportPreviewArea h4 { font-size: 0.95em; }
+            .main-page .export-section .primary-action-button { font-size: 0.9em; padding: 8px 12px; } /* Revert to general button size for desktop */
+            /* Original main page primary button desktop style */
+            .main-page .primary-action-button:not(.settings-page .primary-action-button):not(.export-section .primary-action-button) { width: auto; display: inline-block; padding: 10px 16px; font-size: 0.95em; }
+            .main-page .primary-action-button + .main-page .primary-action-button { margin-top: 5px; margin-left:8px; margin-right:0;}
+
+
+            .settings-page .settings-content { padding: 10px; margin-top:12px; }
+            .settings-page .settings-content h3 { font-size: 1.05em; margin-bottom: 8px; } 
+            .settings-page .settings-content h4 { font-size: 0.95em; margin-top: 1em; } 
+            .settings-page .primary-action-button { width: auto; display: inline-block; padding: 8px 12px; font-size: 0.85em; }
+            .settings-page .primary-action-button + .settings-page .primary-action-button { margin-top:5px; margin-left:6px;}
+            .settings-page .theme-toggle-btn { width: auto; }
+            .settings-page .add-tag-form { flex-direction: row; align-items: center; gap: 6px; margin-bottom: 12px; }
+            .settings-page .add-tag-form input[type="text"] { width: auto; flex-grow: 1; font-size: 0.85em; padding: 6px; }
+            .settings-page .add-tag-form input[type="color"] { height: 30px; width: 45px; } 
+            .settings-page .add-tag-form button { width: auto; } 
+            .settings-page .settings-content .tag-item { padding: 6px 0; }
+            .settings-page .settings-content .tag-color-preview { width: 18px; height: 18px; margin-right: 6px;}
+            .settings-page .settings-content .delete-tag-btn { padding: 4px 6px; font-size:0.75em; margin-left: 6px;}
+            .settings-page hr { margin: 15px 0; }
+            .settings-page .font-size-display-reset button { font-size: 0.75em !important; }
+            .settings-page .font-size-slider-buttons button { font-size: 0.9em !important; min-width: 35px; flex-basis: 35px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div id="headerTimeContainer" class="header-time-container">
+            <span id="currentTimeDisplay" class="header-time"></span>
+            <span class="header-reminder">(点击记录过去)</span>
+        </div>
+        <div class="header-nav">
+            <button id="donateBtn" title="捐赠">❤️</button> 
+            <button id="settingsBtn" title="设置">⚙️</button>
+            <button id="homeBtn" title="主页" style="display:none;">🏠</button>
+        </div>
+    </div>
+    <div class="app-container">
+        <div id="mainPage" class="main-page active">
+            <div class="date-nav">
+                <button id="prevDayBtn">&lt; 前一天</button>
+                <span id="currentDateDisplay" class="current-date-display"></span>
+                <button id="nextDayBtn">后一天 &gt;</button>
+            </div>
+            <div id="hourlyRecords"></div>
+            <div class="export-section">
+                <h3>导出记录</h3>
+                <button id="exportTodayBtn" class="primary-action-button">导出今天记录</button>
+                <button id="exportAllBtn" class="primary-action-button">导出全部记录 (TXT)</button>
+                <div id="exportPreviewArea" style="display:none; margin-top:15px;">
+                    <h4>预览：</h4>
+                    <textarea id="exportTextarea" readonly rows="6"></textarea>
+                    <div class="copy-button-container" style="margin-top:10px;">
+                         <button id="copyExportBtn" class="primary-action-button">复制到剪贴板</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div id="settingsPage" class="settings-page">
+            <div class="settings-content">
+                <h3>个性化设置</h3>
+                <div> <button id="themeToggleBtn" class="theme-toggle-btn primary-action-button">切换日间/夜间模式</button> </div>
+                <hr>
+                <h3>字体大小调整</h3>
+                <div class="font-size-controls">
+                    <div class="font-size-display-reset">
+                        <label for="fontSizeSlider">字号: <span id="currentFontSizeDisplay">18</span>px</label>
+                        <button id="resetFontSizeBtn" class="primary-action-button">默认值</button>
+                    </div>
+                    <div class="font-size-slider-buttons">
+                        <button id="decreaseFontSizeBtn" class="primary-action-button">-</button>
+                        <input type="range" id="fontSizeSlider" min="8" max="28" step="1" value="18">
+                        <button id="increaseFontSizeBtn" class="primary-action-button">+</button>
+                    </div>
+                </div>
+                <hr>
+                <h3>标签设置</h3>
+                <div class="add-tag-form">
+                    <input type="text" id="newTagName" placeholder="标签名 (如: 工作)">
+                    <div class="color-picker-container"> <label for="newTagColor">颜色:</label> <input type="color" id="newTagColor" value="#ADD8E6"> </div>
+                    <button id="addTagBtn" class="primary-action-button">添加标签</button>
+                </div>
+                <h4>已有标签:</h4> <div id="customTagsList"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Constants
+        const THEME_PREFERENCE_KEY = 'hourlyReflection_themePreference_v4_15'; 
+        const TAG_STORAGE_KEY = 'hourlyReflection_customTags_v4_15';
+        const DATA_STORAGE_PREFIX = 'hourlyReflection_data_v4_15_';
+        const FONT_SIZE_PREFERENCE_KEY = 'hourlyReflection_fontSize_v4_15';
+        const DEFAULT_FONT_SIZE = 18; const MIN_FONT_SIZE = 8; const MAX_FONT_SIZE = 28;
+        const DEFAULT_TAGS_INITIAL = [ { name: "高效", color: "#90EE90" }, { name: "摸鱼", color: "#F08080" }, { name: "一般", color: "#ADD8E6" }, { name: "完美", color: "#FFD700" }];
+
+        // DOM Elements (ensure all are correctly fetched)
+        const themeToggleBtn = document.getElementById('themeToggleBtn');
+        const currentTimeDisplay = document.getElementById('currentTimeDisplay');
+        const headerTimeContainer = document.getElementById('headerTimeContainer');
+        const currentDateDisplay = document.getElementById('currentDateDisplay');
+        const hourlyRecordsContainer = document.getElementById('hourlyRecords');
+        const prevDayBtn = document.getElementById('prevDayBtn');
+        const nextDayBtn = document.getElementById('nextDayBtn');
+        const exportTodayBtn = document.getElementById('exportTodayBtn');
+        const exportAllBtn = document.getElementById('exportAllBtn');
+        const exportPreviewArea = document.getElementById('exportPreviewArea');
+        const exportTextarea = document.getElementById('exportTextarea');
+        const copyExportBtn = document.getElementById('copyExportBtn');
+        const mainPage = document.getElementById('mainPage');
+        const settingsPage = document.getElementById('settingsPage');
+        const settingsBtn = document.getElementById('settingsBtn');
+        const homeBtn = document.getElementById('homeBtn');
+        const donateBtn = document.getElementById('donateBtn'); 
+        const newTagNameInput = document.getElementById('newTagName');
+        const newTagColorInput = document.getElementById('newTagColor');
+        const addTagBtn = document.getElementById('addTagBtn');
+        const customTagsListDiv = document.getElementById('customTagsList');
+        const fontSizeSlider = document.getElementById('fontSizeSlider');
+        const currentFontSizeDisplay = document.getElementById('currentFontSizeDisplay');
+        const decreaseFontSizeBtn = document.getElementById('decreaseFontSizeBtn');
+        const increaseFontSizeBtn = document.getElementById('increaseFontSizeBtn');
+        const resetFontSizeBtn = document.getElementById('resetFontSizeBtn');
+
+        let currentViewDate = new Date();
+        let customTags = [];
+        
+        function applyFontSize(size) { const newSize = parseInt(size); if (isNaN(newSize) || newSize < MIN_FONT_SIZE || newSize > MAX_FONT_SIZE) return; document.body.style.fontSize = `${newSize}px`; if (fontSizeSlider) fontSizeSlider.value = newSize; if (currentFontSizeDisplay) currentFontSizeDisplay.textContent = newSize; }
+        function saveFontSize(size) { localStorage.setItem(FONT_SIZE_PREFERENCE_KEY, size); }
+        function loadAndApplyInitialFontSize() { const savedSize = localStorage.getItem(FONT_SIZE_PREFERENCE_KEY); const initialSize = savedSize ? parseInt(savedSize) : DEFAULT_FONT_SIZE; applyFontSize(initialSize); if (fontSizeSlider) fontSizeSlider.value = initialSize; if (currentFontSizeDisplay) currentFontSizeDisplay.textContent = initialSize; }
+        function applyTheme(theme) { document.body.classList.toggle('dark-mode', theme === 'dark'); if (mainPage.classList.contains('active')) loadRecordsForDate(currentViewDate); }
+        function toggleTheme() { const newTheme = document.body.classList.contains('dark-mode') ? 'light' : 'dark'; localStorage.setItem(THEME_PREFERENCE_KEY, newTheme); applyTheme(newTheme); }
+        function parseHexToRGB(hex) { if (!hex) return null; let r = 0, g = 0, b = 0; if (hex.length === 4) { r = parseInt(hex[1] + hex[1], 16); g = parseInt(hex[2] + hex[2], 16); b = parseInt(hex[3] + hex[3], 16); } else if (hex.length === 7) { r = parseInt(hex.substring(1, 3), 16); g = parseInt(hex.substring(3, 5), 16); b = parseInt(hex.substring(5, 7), 16); } else { return null; } return { r, g, b }; }
+        function formatDate(date) { const yr = date.getFullYear(); const mm = String(date.getMonth() + 1).padStart(2, '0'); const dd = String(date.getDate()).padStart(2, '0'); return `${yr}-${mm}-${dd}`; }
+        function loadCustomTags() { const storedTags = localStorage.getItem(TAG_STORAGE_KEY); customTags = storedTags ? JSON.parse(storedTags) : [...DEFAULT_TAGS_INITIAL]; if (!storedTags) saveCustomTags(); }
+        function saveCustomTags() { localStorage.setItem(TAG_STORAGE_KEY, JSON.stringify(customTags)); }
+        function getTagColorByName(tagName) { if (!tagName) return null; const tagObject = customTags.find(t => t.name === tagName); return tagObject ? tagObject.color : null; }
+        function getStorageKey(date) { return `${DATA_STORAGE_PREFIX}${formatDate(date)}`; } 
+        function getSavedData(date, hour) { const dayRecords = JSON.parse(localStorage.getItem(getStorageKey(date))) || {}; return dayRecords[hour]; }
+        function saveData(date, hour, notes, tagName) { const dayRecords = JSON.parse(localStorage.getItem(getStorageKey(date))) || {}; dayRecords[hour] = { notes, tag: tagName }; localStorage.setItem(getStorageKey(date), JSON.stringify(dayRecords)); }
+        function renderCustomTagsList() { customTagsListDiv.innerHTML = ''; customTags.forEach((tag) => { const itemDiv = document.createElement('div'); itemDiv.classList.add('tag-item'); const nameSpan = document.createElement('span'); const colorPreview = document.createElement('span'); colorPreview.classList.add('tag-color-preview'); colorPreview.style.backgroundColor = tag.color; nameSpan.appendChild(colorPreview); nameSpan.append(document.createTextNode(tag.name)); const deleteBtn = document.createElement('button'); deleteBtn.classList.add('delete-tag-btn'); deleteBtn.textContent = '删除'; deleteBtn.onclick = () => { customTags = customTags.filter(t => t.name !== tag.name); saveCustomTags(); renderCustomTagsList(); if (mainPage.classList.contains('active')) loadRecordsForDate(currentViewDate); }; itemDiv.appendChild(nameSpan); itemDiv.appendChild(deleteBtn); customTagsListDiv.appendChild(itemDiv); }); }
+        function updateCurrentTime() { const now = new Date(); currentTimeDisplay.textContent = `${formatDate(now)} ${now.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false })}`; updateCurrentHourIndicator(); }
+        
+        function updateCurrentHourIndicator() {
+            const now = new Date(); const currentHour = now.getHours(); const todayFormatted = formatDate(now);
+            document.querySelectorAll('.hour-slot').forEach(slot => {
+                slot.classList.remove('current-hour-indicator');
+                const existingBadge = slot.querySelector('.current-hour-badge');
+                if (existingBadge) existingBadge.remove();
+            });
+            if (formatDate(currentViewDate) === todayFormatted) {
+                const currentHourSlot = document.getElementById(`slot-${currentHour}`);
+                if (currentHourSlot) {
+                    currentHourSlot.classList.add('current-hour-indicator'); // Apply border indicator
+                    const badge = document.createElement('span');
+                    badge.classList.add('current-hour-badge'); badge.textContent = '当前';
+                    if (currentHourSlot.classList.contains('is-empty-collapsed')) {
+                        const collapsedTimeLabel = currentHourSlot.querySelector('.time-label-collapsed');
+                        if (collapsedTimeLabel) collapsedTimeLabel.appendChild(badge);
+                    } else {
+                        const timeLabelInSlot = currentHourSlot.querySelector('.slot-left-column .time-label');
+                        if (timeLabelInSlot) timeLabelInSlot.appendChild(badge);
+                    }
+                }
+            }
+        }
+        
+        function loadRecordsForDate(date) {
+            currentDateDisplay.textContent = formatDate(date);
+            hourlyRecordsContainer.innerHTML = ''; 
+            const isDarkMode = document.body.classList.contains('dark-mode');
+            const alphaSlotBg = parseFloat(getComputedStyle(document.documentElement).getPropertyValue(isDarkMode ? '--alpha-slot-bg-dark' : '--alpha-slot-bg-light').trim());
+
+            for (let hour = 0; hour < 24; hour++) {
+                const slotDiv = document.createElement('div'); slotDiv.classList.add('hour-slot'); slotDiv.id = `slot-${hour}`;
+                const slotLeftColumn = document.createElement('div'); slotLeftColumn.classList.add('slot-left-column');
+                const timeLabelActive = document.createElement('label'); timeLabelActive.classList.add('time-label'); timeLabelActive.textContent = `${hour}-${hour + 1}`;
+                slotLeftColumn.appendChild(timeLabelActive);
+                const tagSelect = document.createElement('select'); tagSelect.classList.add('tag-select'); tagSelect.dataset.hour = hour;
+                const noTagOption = document.createElement('option'); noTagOption.value = ""; noTagOption.textContent = "无标签"; tagSelect.appendChild(noTagOption);
+                customTags.forEach(tag => { const option = document.createElement('option'); option.value = tag.name; option.textContent = tag.name; tagSelect.appendChild(option); });
+                slotLeftColumn.appendChild(tagSelect);
+                const notesTextarea = document.createElement('textarea'); notesTextarea.classList.add('notes-textarea');
+                notesTextarea.placeholder = "记录..."; notesTextarea.dataset.hour = hour; notesTextarea.rows = 3; 
+                
+                const savedData = getSavedData(date, hour);
+                const isEmpty = !(savedData && ((savedData.notes && savedData.notes.trim() !== "") || (savedData.tag && savedData.tag.trim() !== "")));
+
+                if (isEmpty) {
+                    slotDiv.classList.add('is-empty-collapsed');
+                    const collapsedTimeLabel = document.createElement('label'); collapsedTimeLabel.classList.add('time-label-collapsed'); 
+                    collapsedTimeLabel.textContent = `${hour}-${hour + 1}`; slotDiv.appendChild(collapsedTimeLabel);
+                    const expanderButton = document.createElement('button'); expanderButton.classList.add('slot-expander-button');
+                    expanderButton.textContent = '点击记录'; 
+                    expanderButton.addEventListener('click', () => {
+                        if(collapsedTimeLabel.parentNode === slotDiv) slotDiv.removeChild(collapsedTimeLabel);
+                        expanderButton.remove(); 
+                        slotDiv.appendChild(slotLeftColumn); slotDiv.appendChild(notesTextarea);
+                        slotDiv.classList.remove('is-empty-collapsed');
+                        const currentData = getSavedData(date, hour);
+                        tagSelect.value = (currentData && currentData.tag) ? currentData.tag : "";
+                        notesTextarea.value = (currentData && currentData.notes) ? currentData.notes : "";
+                        const initialTagColor = getTagColorByName(tagSelect.value); const initialRgb = parseHexToRGB(initialTagColor);
+                        slotDiv.style.backgroundColor = initialRgb ? `rgba(${initialRgb.r}, ${initialRgb.g}, ${initialRgb.b}, ${alphaSlotBg})` : "";
+                        notesTextarea.focus(); updateCurrentHourIndicator();
+                    }, { once: true });
+                    slotDiv.appendChild(expanderButton);
+                } else {
+                    slotDiv.appendChild(slotLeftColumn); slotDiv.appendChild(notesTextarea);
+                    notesTextarea.value = savedData.notes || ''; tagSelect.value = savedData.tag || "";
+                    const initialTagColor = getTagColorByName(tagSelect.value); const initialRgb = parseHexToRGB(initialTagColor);
+                    slotDiv.style.backgroundColor = initialRgb ? `rgba(${initialRgb.r}, ${initialRgb.g}, ${initialRgb.b}, ${alphaSlotBg})` : "";
+                }
+                hourlyRecordsContainer.appendChild(slotDiv);
+
+                tagSelect.addEventListener('change', (e) => {
+                    const newTagName = e.target.value; saveData(date, hour, notesTextarea.value, newTagName);
+                    const hexColor = getTagColorByName(newTagName); const rgb = parseHexToRGB(hexColor);
+                    slotDiv.style.backgroundColor = rgb ? `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${alphaSlotBg})` : "";
+                    if (slotDiv.classList.contains('is-empty-collapsed')) { slotDiv.classList.remove('is-empty-collapsed'); const expBtn = slotDiv.querySelector('.slot-expander-button'); if(expBtn && getComputedStyle(expBtn).display !== 'none') expBtn.click();  }
+                });
+                notesTextarea.addEventListener('input', (e) => {
+                    saveData(date, hour, e.target.value, tagSelect.value);
+                    if (slotDiv.classList.contains('is-empty-collapsed') && e.target.value.trim() !== "") {
+                       const expander = slotDiv.querySelector('.slot-expander-button'); if(expander && getComputedStyle(expander).display !== 'none') expander.click(); 
+                    }
+                });
+            }
+            updateCurrentHourIndicator(); 
+        }
+        function showMainPage() { mainPage.classList.add('active'); settingsPage.classList.remove('active'); if(settingsBtn) settingsBtn.style.display = 'block'; if(donateBtn) donateBtn.style.display = 'block'; if(homeBtn) homeBtn.style.display = 'none'; loadRecordsForDate(currentViewDate); }
+        function showSettingsPage() { mainPage.classList.remove('active'); settingsPage.classList.add('active'); if(settingsBtn) settingsBtn.style.display = 'none'; if(donateBtn) donateBtn.style.display = 'none'; if(homeBtn) homeBtn.style.display = 'block'; renderCustomTagsList(); const cs = parseInt(document.body.style.fontSize)||DEFAULT_FONT_SIZE; if(fontSizeSlider)fontSizeSlider.value=cs; if(currentFontSizeDisplay)currentFontSizeDisplay.textContent=cs; }
+
+        function generateExportTextForDate(date, includeHeader = true) {
+            let textOutput = ""; 
+            if (includeHeader) { textOutput = `日期: ${formatDate(date)}\n----------------------\n`; } 
+            else { textOutput = `日期: ${formatDate(date)}\n`; }
+            const dayRecords = JSON.parse(localStorage.getItem(getStorageKey(date))) || {};
+            let hasRecordsForDate = false; let dailyEntries = [];
+            for (let hour = 0; hour < 24; hour++) {
+                const record = dayRecords[hour];
+                if (record && ((record.notes && record.notes.trim() !== "") || (record.tag && record.tag.trim() !== ""))) {
+                    hasRecordsForDate = true;
+                    let entryLine = `${String(hour).padStart(2, '0')}:00-${String(hour + 1).padStart(2, '0')}:00`;
+                    if (record.tag && record.tag.trim() !== "") { entryLine += ` ${record.tag.trim()}`; }
+                    if (record.notes && record.notes.trim() !== "") {
+                        const notesSingleLine = record.notes.trim().replace(/\n+/g, ' ');
+                        entryLine += ` ${notesSingleLine}`;
+                    }
+                    dailyEntries.push(entryLine);
+                }
+            }
+            if (hasRecordsForDate) { textOutput += dailyEntries.join('\n') + '\n'; } 
+            else {
+                if (includeHeader) { textOutput += "当天没有记录。\n"; }
+                else { textOutput += "  (当天没有记录)\n"; }
+            }
+            return textOutput; 
+        }
+        
+        // Event Listeners
+        if(themeToggleBtn) themeToggleBtn.addEventListener('click', toggleTheme);
+        if(settingsBtn) settingsBtn.addEventListener('click', showSettingsPage);
+        if(homeBtn) homeBtn.addEventListener('click', showMainPage);
+        if(donateBtn) donateBtn.addEventListener('click', () => { const emailToCopy = "842263612@qq.com"; const messageIntro = "支持方式：\n可以支付宝给 842263612@qq.com 发红包。\n\n"; if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(emailToCopy).then(() => { alert(messageIntro + "支付宝账号已复制到剪贴板，感谢您的支持！"); }).catch(err => { alert(messageIntro + "账号复制失败，请手动复制。"); console.error('Failed to copy email: ', err); }); } else { try { const textArea = document.createElement("textarea"); textArea.value = emailToCopy; textArea.style.position = "fixed"; textArea.style.top = "-9999px"; textArea.style.left = "-9999px"; document.body.appendChild(textArea); textArea.focus(); textArea.select(); document.execCommand('copy'); document.body.removeChild(textArea); alert(messageIntro + "支付宝账号已复制到剪贴板，感谢您的支持！"); } catch (e) { alert(messageIntro + "复制功能暂不可用，请手动复制账号。"); } } });
+        if(addTagBtn) addTagBtn.addEventListener('click', () => { const name = newTagNameInput.value.trim(); const color = newTagColorInput.value; if (name && !customTags.find(t => t.name === name)) { customTags.push({ name, color }); saveCustomTags(); renderCustomTagsList(); newTagNameInput.value = ''; if (mainPage.classList.contains('active')) loadRecordsForDate(currentViewDate); } else if (name) { alert('标签名已存在或无效。'); } else { alert('请输入标签名。'); } });
+        if(headerTimeContainer) headerTimeContainer.addEventListener('click', () => { const now = new Date(); let targetDateForRecord = new Date(now); let targetHourForRecord = now.getHours() - 1; if (targetHourForRecord < 0) { targetHourForRecord = 23; targetDateForRecord.setDate(targetDateForRecord.getDate() - 1); } if (formatDate(currentViewDate) !== formatDate(targetDateForRecord)) { currentViewDate = new Date(targetDateForRecord); loadRecordsForDate(currentViewDate); } setTimeout(() => { const targetSlotElement = document.getElementById(`slot-${targetHourForRecord}`); if (targetSlotElement) { const expanderButton = targetSlotElement.querySelector('.slot-expander-button'); if (expanderButton && getComputedStyle(expanderButton).display !== 'none') { expanderButton.click(); } else { targetSlotElement.querySelector('.notes-textarea')?.focus(); } targetSlotElement.scrollIntoView({ behavior: 'smooth', block: 'center' }); } else { hourlyRecordsContainer.scrollIntoView({ behavior: 'smooth', block: 'start'}); } }, 50); });
+        if(prevDayBtn) prevDayBtn.addEventListener('click', () => {  currentViewDate.setDate(currentViewDate.getDate() - 1); loadRecordsForDate(currentViewDate); });
+        if(nextDayBtn) nextDayBtn.addEventListener('click', () => {  currentViewDate.setDate(currentViewDate.getDate() + 1); loadRecordsForDate(currentViewDate); });
+        
+        if(exportTodayBtn) exportTodayBtn.addEventListener('click', () => { exportPreviewArea.style.display = 'block'; exportTextarea.value = generateExportTextForDate(currentViewDate, true); });
+        if(copyExportBtn) copyExportBtn.addEventListener('click', () => { exportTextarea.select(); try { document.execCommand('copy'); alert('已复制到剪贴板!'); } catch (err) { navigator.clipboard.writeText(exportTextarea.value) .then(() => { alert('已复制到剪贴板!'); }) .catch(e => { alert('复制失败，请手动复制。'); console.error(e); }); } });
+        if(exportAllBtn) exportAllBtn.addEventListener('click', () => { let allDataText = "每小时反思 - 全部记录\n======================\n"; let keys = Object.keys(localStorage).filter(key => key.startsWith(DATA_STORAGE_PREFIX)); keys.sort((a,b) => new Date(a.replace(DATA_STORAGE_PREFIX, '')) - new Date(b.replace(DATA_STORAGE_PREFIX, ''))); if (keys.length === 0) { allDataText += "没有找到任何记录。\n"; } else { keys.forEach((key, index) => { const dateStr = key.replace(DATA_STORAGE_PREFIX, ''); const [year, month, day] = dateStr.split('-').map(Number); const date = new Date(year, month - 1, day); allDataText += generateExportTextForDate(date, false); const dayDataString = localStorage.getItem(key); let dayHasEntries = false; if (dayDataString) { const dayData = JSON.parse(dayDataString); dayHasEntries = dayData && Object.values(dayData).some(rec => (rec.notes && rec.notes.trim()!=='') || (rec.tag && rec.tag.trim()!=='')); } if (index < keys.length - 1 && dayHasEntries) {const nextKey = keys[index+1]; const nextDayDataString = localStorage.getItem(nextKey); let nextDayHasEntries = false; if(nextDayDataString){ const nextDayData = JSON.parse(nextDayDataString); nextDayHasEntries = nextDayData && Object.values(nextDayData).some(rec => (rec.notes && rec.notes.trim()!=='') || (rec.tag && rec.tag.trim()!==''));} if (nextDayHasEntries) { allDataText += "----------------------\n";}} }); } allDataText = allDataText.replace(/\n\n(----------------------\n)/g, '\n$1').replace(/(----------------------\n)\n+$/, '$1').replace(/(\(当天没有记录\)\n)\n*(----------------------\n)/g, '$1$2').trimEnd() + '\n'; const blob = new Blob([allDataText], { type: 'text/plain;charset=utf-8' }); const today = new Date(); const formattedDateForFile = `${today.getFullYear()}${(today.getMonth()+1).toString().padStart(2,'0')}${today.getDate().toString().padStart(2,'0')}`; const fileName = `每小时反思_全部_${formattedDateForFile}.txt`; const link = document.createElement('a'); link.href = URL.createObjectURL(blob); link.download = fileName; document.body.appendChild(link); link.click(); document.body.removeChild(link); URL.revokeObjectURL(link.href); exportPreviewArea.style.display = 'none'; });
+        
+        if (fontSizeSlider) { fontSizeSlider.addEventListener('input', (e) => { applyFontSize(e.target.value); }); fontSizeSlider.addEventListener('change', (e) => { saveFontSize(e.target.value); });}
+        if (decreaseFontSizeBtn) { decreaseFontSizeBtn.addEventListener('click', () => { let cs = parseInt(fontSizeSlider.value); if (cs > MIN_FONT_SIZE) { cs--; applyFontSize(cs); saveFontSize(cs); } }); }
+        if (increaseFontSizeBtn) { increaseFontSizeBtn.addEventListener('click', () => { let cs = parseInt(fontSizeSlider.value); if (cs < MAX_FONT_SIZE) { cs++; applyFontSize(cs); saveFontSize(cs); } }); }
+        if (resetFontSizeBtn) { resetFontSizeBtn.addEventListener('click', () => { applyFontSize(DEFAULT_FONT_SIZE); saveFontSize(DEFAULT_FONT_SIZE); });}
+
+        // Initializations
+        loadAndApplyInitialFontSize(); 
+        const savedTheme = localStorage.getItem(THEME_PREFERENCE_KEY) || 'light'; applyTheme(savedTheme); 
+        updateCurrentTime(); setInterval(updateCurrentTime, 30000); 
+        loadCustomTags(); 
+        showMainPage(); 
+    </script>
+</body>
+</html>
